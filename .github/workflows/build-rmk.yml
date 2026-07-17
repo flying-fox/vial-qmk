@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # rmk-types のコンパイルで rustc がスタックオーバーフローするのを防ぐ (32MB)
+      RUST_MIN_STACK: "33554432"
     defaults:
       run:
         working-directory: rmk
