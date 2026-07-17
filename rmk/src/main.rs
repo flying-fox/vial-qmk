@@ -31,10 +31,10 @@ const FLASH_SIZE: usize = 2 * 1024 * 1024;
 // duplex matrix の物理ピン総数 (R0-R4 の5本 + C0-C3 の4本)
 const PIN_NUM: usize = 9;
 
-// 初回書き込み時は true にして、フラッシュに残っている旧キーマップを消去する。
-// キー配置が正しいことを確認できたら false に戻して再ビルド・再書き込みすること。
-// (true のままだと Vial で編集したキーマップが起動のたびに消える)
-const CLEAR_STORAGE: bool = true;
+// キー配置の確認が完了したので false(Vial での編集がフラッシュに保存される)。
+// キーマップの既定値を変更した場合や、動作がおかしいときの切り分けでは一時的に true に
+// 戻してストレージをクリアすること(true のままだと Vial の編集が起動のたびに消える)。
+const CLEAR_STORAGE: bool = false;
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
