@@ -1,0 +1,46 @@
+name: Build RMK firmware (Primer29)
+
+on:
+  push:
+    paths:
+      - "rmk/**"
+      - ".github/workflows/build-rmk.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rmk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv6m-none-eabi
+          components: llvm-tools
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rmk
+
+      - name: Install build tools (flip-link, cargo-binutils, cargo-hex-to-uf2)
+        run: cargo install flip-link cargo-binutils cargo-hex-to-uf2
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Generate HEX
+        run: cargo objcopy --release -- -O ihex primer29.hex
+
+      - name: Convert to UF2
+        run: cargo hex-to-uf2 --input-path primer29.hex --output-path primer29.uf2 --family rp2040
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: primer29-rmk-uf2
+          path: rmk/primer29.uf2
