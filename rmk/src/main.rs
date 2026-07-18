@@ -31,10 +31,10 @@ const FLASH_SIZE: usize = 2 * 1024 * 1024;
 // duplex matrix の物理ピン総数 (R0-R4 の5本 + C0-C3 の4本)
 const PIN_NUM: usize = 9;
 
-// キー配置の確認が完了したので false(Vial での編集がフラッシュに保存される)。
-// キーマップの既定値を変更した場合や、動作がおかしいときの切り分けでは一時的に true に
-// 戻してストレージをクリアすること(true のままだと Vial の編集が起動のたびに消える)。
-const CLEAR_STORAGE: bool = false;
+// 論理マトリクスが 5×7 → 8×7 に変わったため、旧ストレージとの不整合を避けるべく
+// 一時的に true(起動時にストレージ消去)。この「消去ビルド」を一度書き込んだあと、
+// false に戻したビルドを書き込んで運用する(true のままだと Vial の編集が毎回消える)。
+const CLEAR_STORAGE: bool = true;
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
@@ -67,6 +67,9 @@ async fn main(_spawner: Spawner) {
     // QMK(active-low: 駆動側を Low に落とす)とは電流の向きが逆になるため、
     // 導通試験のラベル RxCy(QMK 的には Rx 駆動・Cy 読み取り)のキーは、
     // RMK では Pins(in = Rx, out = Cy) で検出される。CyRx はその逆で Pins(in = Cy, out = Rx)。
+    //
+    // 行5-7 は物理キーの無い「仮想行」(シーケンスマクロの設定用セル。keymap.rs /
+    // sequences.rs 参照)なので、全マス Ignore(スキャン対象外)。
     let scan_map: [[ScanLocation; COL]; ROW] = [
         // Row0: R0C0, C0R0, R0C1, C1R0, R0C2, C2R0, R0C3
         [Pins(0, 5), Pins(5, 0), Pins(0, 6), Pins(6, 0), Pins(0, 7), Pins(7, 0), Pins(0, 8)],
@@ -78,6 +81,10 @@ async fn main(_spawner: Spawner) {
         [Pins(3, 5), Pins(5, 3), Pins(3, 6), Pins(6, 3), Pins(3, 7), Pins(7, 3), Ignore],
         // Row4: R4C0, C0R4, R4C1, (無), R4C2(2u "0"), C2R4, R4C3(2u Enter)
         [Pins(4, 5), Pins(5, 4), Pins(4, 6), Ignore, Pins(4, 7), Pins(7, 4), Pins(4, 8)],
+        // Row5(TRIG1)・Row6(TRIG2)・Row7(OUT): 仮想行、物理スキャン無し
+        [Ignore, Ignore, Ignore, Ignore, Ignore, Ignore, Ignore],
+        [Ignore, Ignore, Ignore, Ignore, Ignore, Ignore, Ignore],
+        [Ignore, Ignore, Ignore, Ignore, Ignore, Ignore, Ignore],
     ];
 
     // Use internal flash to emulate eeprom
@@ -97,7 +104,12 @@ async fn main(_spawner: Spawner) {
         ..Default::default()
     };
     // Initialize the storage and keymap
-    let mut default_keymap = keymap::get_default_keymap();
+    //
+    // キーマップの実体は keymap::KEYMAP_STORE(static)にあり、その &mut を RMK に渡す。
+    // sequences.rs(シーケンスマクロ)がトリガー設定(行5-6)をこの static から直接
+    // 読むための構成(rmk 0.8.2 に KeyMap を外から読む公開 API が無いため。keymap.rs 参照)。
+    // Safety: keymap_mut() を呼ぶのはここ一度きり(&mut の一意性を保証)。
+    let default_keymap = unsafe { keymap::KEYMAP_STORE.keymap_mut() };
     let storage_config = StorageConfig {
         clear_storage: CLEAR_STORAGE,
         ..Default::default()
@@ -105,7 +117,7 @@ async fn main(_spawner: Spawner) {
     let mut behavior_config = BehaviorConfig::default();
     let mut per_key_config = PositionalConfig::default();
     let (keymap, mut storage) = initialize_keymap_and_storage(
-        &mut default_keymap,
+        default_keymap,
         flash,
         &storage_config,
         &mut behavior_config,
