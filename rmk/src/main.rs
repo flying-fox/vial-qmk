@@ -31,10 +31,10 @@ const FLASH_SIZE: usize = 2 * 1024 * 1024;
 // duplex matrix の物理ピン総数 (R0-R4 の5本 + C0-C3 の4本)
 const PIN_NUM: usize = 9;
 
-// 論理マトリクスが 5×7 → 8×7 に変わったため、旧ストレージとの不整合を避けるべく
-// 一時的に true(起動時にストレージ消去)。この「消去ビルド」を一度書き込んだあと、
-// false に戻したビルドを書き込んで運用する(true のままだと Vial の編集が毎回消える)。
-const CLEAR_STORAGE: bool = true;
+// 通常運用は false(Vial での編集がフラッシュに保存される)。
+// マトリクス次元やキーマップ既定値を変更したときは、一時的に true にした「消去ビルド」を
+// 一度書き込んでから false に戻すこと(true のままだと Vial の編集が起動のたびに消える)。
+const CLEAR_STORAGE: bool = false;
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
