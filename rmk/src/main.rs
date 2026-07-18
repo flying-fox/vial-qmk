@@ -2,6 +2,7 @@
 #![no_std]
 #[macro_use]
 mod keymap;
+mod sequences;
 mod vial;
 use defmt::info;
 use embassy_executor::Spawner;
@@ -11,7 +12,6 @@ use embassy_rp::gpio::Flex;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::{Driver, InterruptHandler};
 use keymap::{COL, ROW};
-use rmk::channel::EVENT_CHANNEL;
 use rmk::config::{BehaviorConfig, DeviceConfig, PositionalConfig, RmkConfig, StorageConfig, VialConfig};
 use rmk::debounce::default_debouncer::DefaultDebouncer;
 use rmk::futures::future::join3;
@@ -19,7 +19,7 @@ use rmk::input_device::Runnable;
 use rmk::keyboard::Keyboard;
 use rmk::matrix::bidirectional_matrix::ScanLocation::{Ignore, Pins};
 use rmk::matrix::bidirectional_matrix::{BidirectionalMatrix, ScanLocation};
-use rmk::{initialize_keymap_and_storage, run_devices, run_rmk};
+use rmk::{initialize_keymap_and_storage, run_rmk};
 use vial::{VIAL_KEYBOARD_DEF, VIAL_KEYBOARD_ID};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -119,10 +119,12 @@ async fn main(_spawner: Spawner) {
     let mut keyboard = Keyboard::new(&keymap);
 
     // Start
+    //
+    // matrix.read_event() は run_devices! マクロを経由させず、
+    // sequences::run_sequence_engine(シーケンスマクロの状態機械)に通してから
+    // KEY_EVENT_CHANNEL / EVENT_CHANNEL へ流す(詳細は sequences.rs 冒頭のコメント参照)。
     join3(
-        run_devices! (
-            (matrix) => EVENT_CHANNEL,
-        ),
+        sequences::run_sequence_engine(matrix),
         keyboard.run(),
         run_rmk(&keymap, driver, &mut storage, rmk_config),
     )
