@@ -36,6 +36,15 @@ jobs:
       - name: Build
         run: cargo build --release
 
+      # keyboard.toml の [rmk] が実際にビルドへ効いたかの検証。
+      # KEYBOARD_TOML_PATH が届かないと rmk の build.rs は既定値でビルドを通してしまい、
+      # コンボが 8 個のままの uf2 が黙って出来上がるため、生成物を直接確認する。
+      - name: Verify combo_max_num from keyboard.toml is applied
+        run: |
+          grep -R --include=constants.rs -H 'COMBO_MAX_NUM\|COMBO_MAX_LENGTH' target || true
+          grep -Rq --include=constants.rs 'COMBO_MAX_NUM: usize = 128;' target \
+            || { echo "::error::COMBO_MAX_NUM != 128 (keyboard.toml / KEYBOARD_TOML_PATH not applied)"; exit 1; }
+
       - name: Generate HEX
         run: cargo objcopy --release -- -O ihex primer29.hex
 

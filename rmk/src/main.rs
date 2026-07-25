@@ -37,6 +37,18 @@ const PIN_NUM: usize = 9;
 // (true のままだと Vial で編集したキーマップやコンボが起動のたびに消える)
 const CLEAR_STORAGE: bool = true;
 
+// keyboard.toml の [rmk] combo_max_num(= Vial の Combos タブで設定できるコンボの数)が
+// このビルドに効いているかのコンパイル時検証。
+// 定数 COMBO_MAX_NUM 自体は rmk クレート内で pub(crate) のため直接は参照できないが、
+// CombosConfig は `combos: [Option<Combo>; COMBO_MAX_NUM]` を持つ pub 構造体なので、
+// 型のサイズから「容量が既定の 8 のままではない」ことを判定できる。
+// KEYBOARD_TOML_PATH が rmk クレートの build.rs に届かないと、既定値のままビルドが
+// 通ってしまい、コンボが 8 個の uf2 が黙って出来上がるため、ここで止める。
+const _: () = assert!(
+    core::mem::size_of::<rmk::config::CombosConfig>() > 64 * core::mem::size_of::<Option<rmk::combo::Combo>>(),
+    "combo_max_num が既定のまま: keyboard.toml と .cargo/config.toml の KEYBOARD_TOML_PATH を確認すること"
+);
+
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     info!("RMK start!");
