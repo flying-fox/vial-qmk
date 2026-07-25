@@ -1,0 +1,18 @@
+# RMK のコンパイル時定数を上書きするための設定ファイル。
+#
+# rmk クレート側の build.rs が、環境変数 KEYBOARD_TOML_PATH で指されたこのファイルを読み、
+# COMBO_MAX_NUM などの定数(OUT_DIR/constants.rs)を生成する。パスは .cargo/config.toml の
+# [env] から渡している(build script のカレントは rmk クレート側なので絶対パスが必要)。
+#
+# 注意: このファームは「keyboard.toml からファーム全体を生成する」RMK の toml 方式は
+# 使っていない。ピン配置・キーマップ・Vial 設定は src/main.rs / src/keymap.rs / vial.json
+# 側で定義しており、ここに書くのは [rmk](定数)だけ。rmk 0.8.2 の KeyboardTomlConfig は
+# [rmk] 以外のテーブルがすべて Option なので、このファイル単体でパースが通る。
+[rmk]
+# Vial の "Combos" タブで設定できるコンボの数(rmk の既定は 8、上限は 256)。
+# 増やすとフラッシュのストレージ消費と RAM(BehaviorConfig)も増えるので、
+# src/main.rs の StorageConfig.num_sectors と合わせて調整すること。
+combo_max_num = 128
+
+# 1コンボあたりの最大キー数(rmk の既定は 4)。Vial の Combos タブの入力欄も4つ。
+combo_max_length = 4

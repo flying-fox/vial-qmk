@@ -10,3 +10,9 @@ target = "thumbv6m-none-eabi" # Cortex-M0 and Cortex-M0+
 
 [env]
 DEFMT_LOG = "debug"
+
+# rmk クレートの build.rs に、コンパイル時定数の設定ファイル(keyboard.toml)を渡す。
+# build script のカレントディレクトリは rmk クレート側(~/.cargo/registry/...)になるため、
+# 相対パスのままでは解決できない。relative = true を付けると cargo が
+# 「.cargo ディレクトリの親」(= このリポジトリの rmk/)基準の絶対パスに変換して渡す。
+KEYBOARD_TOML_PATH = { value = "keyboard.toml", relative = true }

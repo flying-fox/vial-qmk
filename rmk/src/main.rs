@@ -31,9 +31,10 @@ const FLASH_SIZE: usize = 2 * 1024 * 1024;
 // duplex matrix の物理ピン総数 (R0-R4 の5本 + C0-C3 の4本)
 const PIN_NUM: usize = 9;
 
-// 初回書き込み時は true にして、フラッシュに残っている旧キーマップを消去する。
-// キー配置が正しいことを確認できたら false に戻して再ビルド・再書き込みすること。
-// (true のままだと Vial で編集したキーマップが起動のたびに消える)
+// 初回書き込み時や、ストレージのレイアウトを変えた直後(マトリクス寸法の変更、
+// StorageConfig.num_sectors の変更など)は true にして、フラッシュに残っている
+// 旧データを消去する。動作を確認できたら false に戻して再ビルド・再書き込みすること。
+// (true のままだと Vial で編集したキーマップやコンボが起動のたびに消える)
 const CLEAR_STORAGE: bool = true;
 
 #[embassy_executor::main]
@@ -100,6 +101,12 @@ async fn main(_spawner: Spawner) {
     let mut default_keymap = keymap::get_default_keymap();
     let storage_config = StorageConfig {
         clear_storage: CLEAR_STORAGE,
+        // フラッシュ末尾から確保するストレージ領域のセクタ数(RP2040 は 1 セクタ = 4KB)。
+        // 既定の 2(8KB)では、キーマップに加えて Vial のコンボ 128 個ぶんのレコード
+        // (keyboard.toml の combo_max_num。1件あたり数十バイト)が入りきらない。
+        // sequential-storage は更新のたびに追記して古いレコードをゴミにする方式なので、
+        // 実データ量の数倍の余裕を見て 8 セクタ(32KB)確保する。
+        num_sectors: 8,
         ..Default::default()
     };
     let mut behavior_config = BehaviorConfig::default();
