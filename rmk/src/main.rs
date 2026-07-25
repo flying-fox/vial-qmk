@@ -35,7 +35,7 @@ const PIN_NUM: usize = 9;
 // StorageConfig.num_sectors の変更など)は true にして、フラッシュに残っている
 // 旧データを消去する。動作を確認できたら false に戻して再ビルド・再書き込みすること。
 // (true のままだと Vial で編集したキーマップやコンボが起動のたびに消える)
-const CLEAR_STORAGE: bool = true;
+const CLEAR_STORAGE: bool = false;
 
 // keyboard.toml の [rmk] combo_max_num(= Vial の Combos タブで設定できるコンボの数)が
 // このビルドに効いているかのコンパイル時検証。
