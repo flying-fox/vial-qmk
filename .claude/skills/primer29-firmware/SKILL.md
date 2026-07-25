@@ -19,7 +19,7 @@ ProMicro AVR から ProMicro RP2040 に換装した個体向けファームウ�
 
 | 系統 | 場所 | 状態 |
 |------|------|------|
-| **RMK版(現行メインライン)** | `rmk/` | **実機で全キー+Vial+シーケンスマクロ動作確認済み** |
+| **RMK版(現行メインライン)** | `rmk/` | **実機で全キー+Vial 動作確認済み**。コンボ128個対応 |
 | QMK版(旧) | `keyboards/yushakobo/primer29/` | vial-qmk オーバーレイ。flying-fox/vial-qmk に PR #1 として提出済み。実機未検証 |
 
 - ローカルリポジトリ: `C:\Users\qutto\claude\keyboard-firmware`(ブランチ `primer29-rp2040`)
@@ -44,12 +44,11 @@ Artifacts に `primer29-rmk-uf2`(primer29.uf2)が生成される。手動実行�
 ## RMK版の構成
 
 - `rmk = "=0.8.2"` **完全固定**(BidirectionalMatrix の動作実績があるバージョン。安易に上げない)
-- 論理マトリクス **8行×7列**:
-  - 行0-4 = 物理キー29個 + 物理キー無し6マス((1,6)(2,0)(2,1)(2,2)(3,6)(4,3) — scan_map で Ignore)
-  - 行5-7 = 仮想行(物理スキャン無し、シーケンスマクロ設定用。scan_map 全 Ignore)
-- ファイル: `src/main.rs`(初期化+scan_map)/ `src/keymap.rs`(既定キーマップ+KeymapStore)/
-  `src/sequences.rs`(シーケンスマクロ)/ `src/vial.rs` / `vial.json` / `build.rs` / `Makefile.toml` /
-  `memory.x` / `.cargo/config.toml`
+- 論理マトリクス **5行×7列**(物理キー29個 + 物理キー無し6マス
+  (1,6)(2,0)(2,1)(2,2)(3,6)(4,3) は scan_map で Ignore)
+- ファイル: `src/main.rs`(初期化+scan_map)/ `src/keymap.rs`(既定キーマップ)/ `src/vial.rs` /
+  `vial.json` / **`keyboard.toml`**(RMK のコンパイル時定数)/ `build.rs` / `Makefile.toml` /
+  `memory.x` / `.cargo/config.toml`(target 設定 + `[env]`)
 
 ## 壊してはいけない不変条件(RMK版)
 
@@ -61,17 +60,15 @@ Artifacts に `primer29-rmk-uf2`(primer29.uf2)が生成される。手動実行�
 2. **scan_map の方向は active-high 前提**。RMK の BidirectionalMatrix は出力ピンを High に駆動して
    入力を読む。QMK(active-low)と電流方向が逆なので、QMK 語彙で「Rx駆動・Cy読み」のキー(RxCy)は
    RMK では `Pins(in=Rx, out=Cy)`。**「隣接列ペアの入れ替わり」が観測されたら方向が逆**と疑う。
-3. **Key イベントは KEY_EVENT_CHANNEL に送る**(EVENT_CHANNEL ではない)。rmk 0.8.2 の
-   `run_devices!` マクロの実挙動で、`Keyboard::run()` は KEY_EVENT_CHANNEL しか読まない。
-   sequences.rs の `forward()` がこの振り分けを再現している。
-4. **KeymapStore パターンを崩さない**(keymap.rs)。rmk 0.8.2 の KeyMap は中身を外から読む公開 API が
-   皆無(全部 pub(crate))なので、キーマップ実体を static(UnsafeCell)に置き、`keymap_mut()` は
-   main.rs で一度だけ呼び、sequences.rs は `read_layer0()`(生ポインタ+read_volatile)で読む。
-   借用を持ったまま .await しない。
-5. **三点整合を保つ**: keymap.rs(8×7×4層)/ main.rs の scan_map(8行、行5-7は全Ignore)/
-   vial.json(matrix.rows=8, cols=7、ラベル50個 = 物理29+仮想21)。vial.json の検証ワンライナー:
+3. **`keyboard.toml` と `KEYBOARD_TOML_PATH` はセットで維持する**(コンボ数の設定経路)。
+   `.cargo/config.toml` の `[env]` から `relative = true` で渡すこと。片方でも欠けると
+   コンボが黙って既定の8個に戻る(main.rs のコンパイル時アサートが検出する)。
+4. **`StorageConfig.num_sectors: 8`**(32KB)。コンボ128個ぶんのレコードは既定の2セクタ(8KB)に
+   入らない。減らすとフラッシュ書き込みが失敗しうる。変更したら CLEAR_STORAGE の2段書き込み。
+5. **三点整合を保つ**: keymap.rs(5×7×4層)/ main.rs の scan_map(5行)/
+   vial.json(matrix.rows=5, cols=7、ラベル29個)。vial.json の検証ワンライナー:
    ```
-   python -c "import json; v=json.load(open('rmk/vial.json',encoding='utf-8')); L=[i for r in v['layouts']['keymap'] for i in r if isinstance(i,str)]; C=[tuple(map(int,s.split(','))) for s in L]; assert len(L)==50==len(set(C)) and all(0<=r<8 and 0<=c<7 for r,c in C), 'NG'; print('OK')"
+   python -c "import json; v=json.load(open('rmk/vial.json',encoding='utf-8')); L=[i for r in v['layouts']['keymap'] for i in r if isinstance(i,str)]; C=[tuple(map(int,s.split(','))) for s in L]; assert len(L)==29==len(set(C)) and all(0<=r<5 and 0<=c<7 for r,c in C), 'NG'; print('OK')"
    ```
 6. **USB ID は VID 0x4C4B / PID 0x4643** で vial.json の vendorId/productId と一致させる。
    serial_number は `vial:f64c2b3c:000001` 形式を維持(Vial 検出用)。
@@ -82,21 +79,38 @@ Artifacts に `primer29-rmk-uf2`(primer29.uf2)が生成される。手動実行�
    原因は大抵これ。
 8. Cargo.toml の依存を勝手に追加・更新しない(embassy-time 等は既存のもので賄う)。
 
-## シーケンスマクロ(src/sequences.rs)
+## コンボ(RMK標準 / Vial の Combos タブ、128個)
 
-「キー1→キー2」の2キー連続入力で、設定したキー/マクロを出力する自作機能。
+Vial の **Combos** タブで最大4キーの同時押し → 1キー出力を **128個**設定できる。
+RMK 本体の機能で、ファーム側に自作コードは無い。
 
-- **2つの発動パス**: タップパス(キー1をTAP_TERM=200ms以内にタップ→SEQ_GAP=300ms以内にキー2press)と
-  重ね押しパス(キー1押下のままSEQ_OVERLAP=300ms以内にキー2press)。
-- 状態機械5状態: Idle / Held1 / WaitSecond / Emitting / EmittingOverlap。タイムアウトは
-  embassy_time::with_deadline でタイマー即時確定(ホールド遅延の最小化)。
-  キー2を押し続けると出力キーがホールド(リピート)。release の同定は実位置(row,col)。
-- **設定はすべて Vial 上**: 仮想行が Vial に表示され、縦1列=1シーケンス(最大7本)。
-  - 行5 = TRIG1(キー1)/ 行6 = TRIG2(キー2)/ 行7 = OUT(出力キー or Vialマクロ)
-  - TRIG1/TRIG2 のどちらかが KC_NO(または Transparent)の列は無効
-  - **トリガー判定はレイヤー0の値のみ**(レイヤー状態を読むAPIが無いため)。行5-7 の
-    レイヤー1-3 は Transparent 既定で触らない
-- 既定: 列0=Home→PgUp、列1=Del→End、列2=↑→↓(出力は未設定)
+- **個数は `rmk/keyboard.toml` の `[rmk] combo_max_num`**(rmk 既定 8、上限 256)。
+  rmk クレートの build.rs がこれを読んでコンパイル時定数 `COMBO_MAX_NUM` を生成する。
+- **設定ファイルの渡し方**: `rmk/.cargo/config.toml` の
+  `[env] KEYBOARD_TOML_PATH = { value = "keyboard.toml", relative = true }`。
+  build script のカレントは rmk クレート側なので相対パスでは解決できず、`relative = true`
+  (= `.cargo` の**親**ディレクトリ基準で絶対パス化)が必須。
+  `KeyboardTomlConfig` は `[rmk]` 以外のテーブルが全部 Option なので、`[rmk]` だけ書けば通る。
+- **ストレージも一緒に増やす**: コンボは1個1レコードでフラッシュ保存される。
+  `main.rs` の `StorageConfig.num_sectors` を既定2(8KB)→ **8(32KB)** にしてある。
+  `start_addr: 0` は「フラッシュ末尾から num_sectors 分」なので、セクタ数を変えると
+  領域の開始位置が動く → 変更時は CLEAR_STORAGE の2段書き込みが必要。
+- **設定が効いたかの二重検証**(黙って既定8のままビルドが通るのを防ぐ):
+  1. `main.rs` のコンパイル時アサート。`COMBO_MAX_NUM` は pub(crate) で参照できないが、
+     `rmk::config::CombosConfig` は `combos: [Option<Combo>; COMBO_MAX_NUM]` を持つ pub
+     構造体なので `size_of::<CombosConfig>() > 64 * size_of::<Option<Combo>>()` で判定できる。
+  2. CI が生成物 `constants.rs` を grep(**`= 128usize;` 形式**。`= 128;` では引っ掛からない)。
+- **仕様上の限界**: RMK のコンボ判定は**同時押し(押し重ね)のみ**。`Combo::update_released()`
+  が全キーリリースで状態をリセットするため、**キーを離してから次を押す順次入力では発動しない**。
+  判定時間の既定は 50ms。1コンボの最大キー数は `combo_max_length`(既定4)。
+
+### 撤去された自作シーケンスマクロ(履歴)
+
+2026-07-19 に「キー1タップ→キー2タップ」で発動する自作機能(`src/sequences.rs` +
+論理マトリクスを8行×7列に拡張して仮想行5-7を Vial に見せる方式)を実装したが、
+2026-07-25 に **Vial 標準コンボへ方針変更**したため 798a3b1 の状態へ revert して撤去した。
+順次入力(離してから次)を実現したい場合はこの方式に戻す必要がある(コンボでは代替不可)。
+実装は commit 21f658c を参照。
 
 ## キー不具合の切り分けパターン(実績ベース)
 
@@ -105,7 +119,10 @@ Artifacts に `primer29-rmk-uf2`(primer29.uf2)が生成される。手動実行�
 | 全キーが1行ずれる+最下行だけ全滅 | 行ピンが1本ずれ(GP4開始になっている) |
 | 隣接列ペア(0↔1, 2↔3, 4↔5)が入れ替わる | scan_map の in/out 方向が逆 |
 | ソース変更(キーマップ)が反映されない | フラッシュの保存キーマップが優先されている → CLEAR_STORAGE true を一度 |
-| Vial に設定行が出ない | 旧ファームのまま(vial.json はファーム内蔵。新 uf2 を書き込む) |
+| Vial の Combos タブが8個のまま | keyboard.toml が build.rs に届いていない(KEYBOARD_TOML_PATH / relative) |
+| コンボを設定しても保存されない・起動で消える | num_sectors 不足、または CLEAR_STORAGE が true のまま |
+| キーを離してから次を押すとコンボが出ない | 仕様(RMK のコンボは同時押し判定のみ) |
+| Vial の表示が古い | 旧ファームのまま(vial.json はファーム内蔵。新 uf2 を書き込む) |
 | CI で rustc SIGSEGV | RUST_MIN_STACK 未設定 |
 | workflow ファイルの push が 403 | PAT に workflow スコープが無い |
 
